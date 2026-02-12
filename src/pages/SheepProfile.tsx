@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import PageWrapper from "@/components/layout/PageWrapper";
 import HealthScoreGauge from "@/components/sheep/HealthScoreGauge";
 import HealthTimeline from "@/components/sheep/HealthTimeline";
 import { mockSheep, mockHealthEvents } from "@/data/mockData";
-import { motion } from "framer-motion";
-import { ArrowLeft, QrCode, Shield, Calendar, Weight, Tag } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, QrCode, Shield, Calendar, Weight, Tag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { QRCodeSVG } from "qrcode.react";
 
 const statusConfig = {
   healthy: { label: "Healthy", className: "bg-success/10 text-success border-success/20" },
@@ -23,6 +25,7 @@ const riskExplanation = {
 
 const SheepProfile = () => {
   const { id } = useParams();
+  const [showQR, setShowQR] = useState(false);
   const sheep = mockSheep.find(s => s.id === id);
   const events = mockHealthEvents.filter(e => e.sheep_id === id);
 
@@ -101,9 +104,40 @@ const SheepProfile = () => {
               ))}
             </div>
 
-            <Button variant="outline" className="w-full mt-5 gap-2 rounded-xl">
+            <Button variant="outline" className="w-full mt-5 gap-2 rounded-xl" onClick={() => setShowQR(true)}>
               <QrCode className="h-4 w-4" /> View QR Code
             </Button>
+
+            {/* QR Modal */}
+            <AnimatePresence>
+              {showQR && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4"
+                  onClick={() => setShowQR(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0.9 }}
+                    className="glass-card p-6 text-center relative max-w-xs w-full"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Button variant="ghost" size="icon" className="absolute top-2 right-2 rounded-xl" onClick={() => setShowQR(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <h4 className="font-heading font-bold text-foreground mb-1">{sheep.name}</h4>
+                    <p className="text-xs text-muted-foreground font-mono mb-4">{sheep.tag_id}</p>
+                    <div className="bg-card p-4 rounded-2xl inline-block">
+                      <QRCodeSVG value={sheep.id} size={180} level="H" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-3">Scan to view health passport</p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
 

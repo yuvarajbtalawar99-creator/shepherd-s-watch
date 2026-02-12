@@ -1,8 +1,11 @@
+import { useState } from "react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import StatCard from "@/components/dashboard/StatCard";
 import { mockSheep, mockDailyTasks } from "@/data/mockData";
-import { Heart, AlertTriangle, Syringe, Baby, ListChecks, TrendingUp } from "lucide-react";
-import { motion } from "framer-motion";
+import { Heart, AlertTriangle, Syringe, Baby, ListChecks, TrendingUp, ScanLine } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import QRScanner from "@/components/scanner/QRScanner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -34,13 +37,22 @@ const illnessTrend = [
 ];
 
 const Dashboard = () => {
+  const [showScanner, setShowScanner] = useState(false);
   const totalSheep = mockSheep.length;
   const pregnant = mockSheep.filter(s => s.status === "pregnant").length;
   const highRisk = mockSheep.filter(s => s.risk_level === "high").length;
   const pendingTasks = mockDailyTasks.filter(t => !t.completed).length;
 
   return (
-    <PageWrapper title="Dashboard" subtitle="Welcome back, Farmer! Here's your flock overview.">
+    <PageWrapper
+      title="Dashboard"
+      subtitle="Welcome back, Farmer! Here's your flock overview."
+      actions={
+        <Button onClick={() => setShowScanner(true)} className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft">
+          <ScanLine className="h-5 w-5" /> Scan QR
+        </Button>
+      }
+    >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard title="Total Sheep" value={totalSheep} icon={ListChecks} color="primary" delay={0} trend={{ value: 8, positive: true }} />
         <StatCard title="Pregnant" value={pregnant} icon={Baby} color="accent" delay={0.1} />
@@ -97,6 +109,9 @@ const Dashboard = () => {
           </LineChart>
         </ResponsiveContainer>
       </motion.div>
+      <AnimatePresence>
+        {showScanner && <QRScanner onClose={() => setShowScanner(false)} />}
+      </AnimatePresence>
     </PageWrapper>
   );
 };
