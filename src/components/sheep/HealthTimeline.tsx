@@ -78,7 +78,7 @@ const HealthTimeline = ({ events }: HealthTimelineProps) => {
       <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-border" />
       <div className="space-y-1">
         {sorted.map((event, i) => {
-          const config = eventConfig[event.type];
+          const config = eventConfig[event.type] || { icon: Stethoscope, color: "text-muted-foreground", bg: "bg-muted" };
           const Icon = config.icon;
           return (
             <motion.div

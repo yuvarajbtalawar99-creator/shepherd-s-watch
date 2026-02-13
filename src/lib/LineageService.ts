@@ -43,7 +43,7 @@ export class LineageService {
             .or(`sire_id.eq.${sheepId},dam_id.eq.${sheepId}`);
 
         if (error) return [];
-        return data as Sheep[];
+        return (data || []) as Sheep[];
     }
 
     /**
