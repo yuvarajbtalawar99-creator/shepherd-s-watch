@@ -25,6 +25,7 @@ import { LineageService } from "@/lib/LineageService";
 import LineageTree from "@/components/sheep/LineageTree";
 import AncestryCertificate from "@/components/sheep/AncestryCertificate";
 import TrustStatsCard from "@/components/sheep/TrustStatsCard";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 const statusConfig = {
   healthy: { label: "Healthy", className: "bg-success/10 text-success border-success/20" },
@@ -271,287 +272,289 @@ const SheepProfile = () => {
         </div>
       }
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="lg:col-span-1"
-        >
-          <div className="glass-card p-6 text-center">
-            {/* Main Image or Avatar */}
-            {sheep.front_image_url ? (
-              <div className="w-32 h-32 rounded-2xl mx-auto mb-4 overflow-hidden shadow-md border-2 border-border">
-                <img src={sheep.front_image_url} alt={sheep.name} className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">🐑</span>
-              </div>
-            )}
-
-            <h2 className="text-xl font-heading font-bold text-foreground">{sheep.name}</h2>
-            <p className="text-sm text-muted-foreground font-mono">{sheep.tag_id}</p>
-            <div className="flex justify-center gap-2 mt-3">
-              <Badge variant="outline" className={statusCfg.className}>{statusCfg.label}</Badge>
-            </div>
-
-            <div className="my-6">
-              <HealthScoreGauge score={displayScore} size={160} label="Health Credit Score" />
-            </div>
-
-            {/* Risk Level */}
-            <div className={`rounded-xl p-3 text-left ${riskLevel === "high" ? "bg-destructive/10" : riskLevel === "medium" ? "bg-warning/10" : "bg-success/10"}`}>
-              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{
-                color: riskLevel === "high" ? "hsl(4,70%,58%)" : riskLevel === "medium" ? "hsl(38,80%,55%)" : "hsl(152,50%,45%)"
-              }}>
-                {riskLevel.toUpperCase()} RISK
-              </p>
-              <p className="text-xs text-foreground/80">{(riskExplanation as any)[riskLevel] || "No risk data available."}</p>
-            </div>
-
-            {/* Details */}
-            <div className="mt-5 space-y-3 text-left">
-              {[
-                { icon: Tag, label: "Breed", value: sheep.breed || "Unknown" },
-                { icon: Calendar, label: "Age", value: `${age} years` },
-                { icon: Weight, label: "Weight", value: sheep.weight_kg ? `${sheep.weight_kg} kg` : "N/A" },
-                { icon: Shield, label: "Gender", value: sheep.gender ? (sheep.gender === "female" ? "Female ♀" : "Male ♂") : "Unknown" },
-              ].map(item => (
-                <div key={item.label} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                    <item.icon className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
-                    <p className="text-sm font-medium text-foreground">{item.value}</p>
-                  </div>
+      <ErrorBoundary>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Profile Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="lg:col-span-1"
+          >
+            <div className="glass-card p-6 text-center">
+              {/* Main Image or Avatar */}
+              {sheep.front_image_url ? (
+                <div className="w-32 h-32 rounded-2xl mx-auto mb-4 overflow-hidden shadow-md border-2 border-border">
+                  <img src={sheep.front_image_url} alt={sheep.name} className="w-full h-full object-cover" />
                 </div>
-              ))}
-            </div>
-
-            <div className="mt-6 border-t border-border/50 pt-6">
-              <TrustStatsCard
-                onChainCount={events.filter(e => e.verified).length}
-                totalCount={events.length}
-              />
-            </div>
-
-            <Button variant="outline" className="w-full mt-6 gap-2 rounded-xl" onClick={() => setShowQR(true)}>
-              <QrCode className="h-4 w-4" /> View QR Code
-            </Button>
-
-            {/* QR Modal */}
-            <AnimatePresence>
-              {showQR && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4"
-                  onClick={() => setShowQR(false)}
-                >
-                  <motion.div
-                    initial={{ scale: 0.9 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0.9 }}
-                    className="glass-card p-6 text-center relative max-w-xs w-full"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <Button variant="ghost" size="icon" className="absolute top-2 right-2 rounded-xl" onClick={() => setShowQR(false)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                    <h4 className="font-heading font-bold text-foreground mb-1">{sheep.name}</h4>
-                    <p className="text-xs text-muted-foreground font-mono mb-4">{sheep.tag_id}</p>
-                    <div className="bg-card p-4 rounded-2xl inline-block mb-4">
-                      <QRCodeSVG value={sheep.qr_code || sheep.id} size={180} level="H" />
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 rounded-xl mb-3"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadQR();
-                      }}
-                    >
-                      <Download className="h-4 w-4" /> Download QR Image
-                    </Button>
-                    <p className="text-xs text-muted-foreground">Scan to view health passport</p>
-                  </motion.div>
-                </motion.div>
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">🐑</span>
+                </div>
               )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
 
-        {/* Timeline */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="lg:col-span-2"
-        >
-          <Tabs defaultValue="health" className="w-full">
-            <TabsList className="bg-muted/50 p-1 rounded-xl mb-4">
-              <TabsTrigger value="health" className="rounded-lg px-6 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Health Passport</TabsTrigger>
-              <TabsTrigger value="lineage" className="rounded-lg px-6 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Lineage & Trust</TabsTrigger>
-            </TabsList>
+              <h2 className="text-xl font-heading font-bold text-foreground">{sheep.name}</h2>
+              <p className="text-sm text-muted-foreground font-mono">{sheep.tag_id}</p>
+              <div className="flex justify-center gap-2 mt-3">
+                <Badge variant="outline" className={statusCfg.className}>{statusCfg.label}</Badge>
+              </div>
 
-            <TabsContent value="health">
-              <div className="glass-card p-6 h-full">
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="section-title">Digital DNA — Health Passport</h3>
-                  {sheep.dna_report_url && (
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-success text-white border-0 gap-1.5 px-2">
-                        <Shield className="h-3 w-3" /> VERIFIED DNA
-                      </Badge>
+              <div className="my-6">
+                <HealthScoreGauge score={displayScore} size={160} label="Health Credit Score" />
+              </div>
+
+              {/* Risk Level */}
+              <div className={`rounded-xl p-3 text-left ${riskLevel === "high" ? "bg-destructive/10" : riskLevel === "medium" ? "bg-warning/10" : "bg-success/10"}`}>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{
+                  color: riskLevel === "high" ? "hsl(4,70%,58%)" : riskLevel === "medium" ? "hsl(38,80%,55%)" : "hsl(152,50%,45%)"
+                }}>
+                  {riskLevel.toUpperCase()} RISK
+                </p>
+                <p className="text-xs text-foreground/80">{(riskExplanation as any)[riskLevel] || "No risk data available."}</p>
+              </div>
+
+              {/* Details */}
+              <div className="mt-5 space-y-3 text-left">
+                {[
+                  { icon: Tag, label: "Breed", value: sheep.breed || "Unknown" },
+                  { icon: Calendar, label: "Age", value: `${age} years` },
+                  { icon: Weight, label: "Weight", value: sheep.weight_kg ? `${sheep.weight_kg} kg` : "N/A" },
+                  { icon: Shield, label: "Gender", value: sheep.gender ? (sheep.gender === "female" ? "Female ♀" : "Male ♂") : "Unknown" },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                      <item.icon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase">{item.label}</p>
+                      <p className="text-sm font-medium text-foreground">{item.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 border-t border-border/50 pt-6">
+                <TrustStatsCard
+                  onChainCount={events.filter(e => e.verified).length}
+                  totalCount={events.length}
+                />
+              </div>
+
+              <Button variant="outline" className="w-full mt-6 gap-2 rounded-xl" onClick={() => setShowQR(true)}>
+                <QrCode className="h-4 w-4" /> View QR Code
+              </Button>
+
+              {/* QR Modal */}
+              <AnimatePresence>
+                {showQR && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setShowQR(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0.9 }}
+                      className="glass-card p-6 text-center relative max-w-xs w-full"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Button variant="ghost" size="icon" className="absolute top-2 right-2 rounded-xl" onClick={() => setShowQR(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                      <h4 className="font-heading font-bold text-foreground mb-1">{sheep.name}</h4>
+                      <p className="text-xs text-muted-foreground font-mono mb-4">{sheep.tag_id}</p>
+                      <div className="bg-card p-4 rounded-2xl inline-block mb-4">
+                        <QRCodeSVG value={sheep.qr_code || sheep.id} size={180} level="H" />
+                      </div>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="h-7 text-[10px] font-bold uppercase tracking-wider"
-                        onClick={() => window.open(sheep.dna_report_url, '_blank')}
+                        className="w-full gap-2 rounded-xl mb-3"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadQR();
+                        }}
                       >
-                        View Report
+                        <Download className="h-4 w-4" /> Download QR Image
                       </Button>
-                    </div>
-                  )}
-                </div>
-
-                {analysis && (
-                  <div className="mt-6 border-t border-border/50 pt-6">
-                    <DNAIntelligenceCard analysis={analysis} />
-                  </div>
+                      <p className="text-xs text-muted-foreground">Scan to view health passport</p>
+                    </motion.div>
+                  </motion.div>
                 )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
 
-                {events.length > 0 ? (
-                  <div className={analysis ? "mt-8" : "mt-0"}>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-4">Health Timeline</h4>
-                    <HealthTimeline events={events} />
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <p className="text-muted-foreground text-sm mb-4">No health events recorded yet.</p>
-                    {!sheep.dna_report_url && (
-                      <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)} className="gap-2">
-                        <Shield className="h-4 w-4" /> Add DNA Report
-                      </Button>
+          {/* Timeline */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="lg:col-span-2"
+          >
+            <Tabs defaultValue="health" className="w-full">
+              <TabsList className="bg-muted/50 p-1 rounded-xl mb-4">
+                <TabsTrigger value="health" className="rounded-lg px-6 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Health Passport</TabsTrigger>
+                <TabsTrigger value="lineage" className="rounded-lg px-6 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Lineage & Trust</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="health">
+                <div className="glass-card p-6 h-full">
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="section-title">Digital DNA — Health Passport</h3>
+                    {sheep.dna_report_url && (
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-success text-white border-0 gap-1.5 px-2">
+                          <Shield className="h-3 w-3" /> VERIFIED DNA
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] font-bold uppercase tracking-wider"
+                          onClick={() => window.open(sheep.dna_report_url, '_blank')}
+                        >
+                          View Report
+                        </Button>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            </TabsContent>
 
-            <TabsContent value="lineage">
-              <div className="space-y-6">
-                <div className="glass-card p-6">
-                  <h3 className="section-title mb-1">Family Tree</h3>
-                  <p className="text-xs text-muted-foreground mb-6">Interactive ancestry mapping and DNA-verified parentage.</p>
-
-                  {isLoadingAncestry ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+                  {analysis && (
+                    <div className="mt-6 border-t border-border/50 pt-6">
+                      <DNAIntelligenceCard analysis={analysis} />
                     </div>
-                  ) : ancestry ? (
-                    <LineageTree root={ancestry} />
+                  )}
+
+                  {events.length > 0 ? (
+                    <div className={analysis ? "mt-8" : "mt-0"}>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-4">Health Timeline</h4>
+                      <HealthTimeline events={events} />
+                    </div>
                   ) : (
-                    <div className="text-center py-12">
-                      <p className="text-sm text-muted-foreground">No lineage data available for this sheep.</p>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <p className="text-muted-foreground text-sm mb-4">No health events recorded yet.</p>
+                      {!sheep.dna_report_url && (
+                        <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)} className="gap-2">
+                          <Shield className="h-4 w-4" /> Add DNA Report
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
+              </TabsContent>
 
-                <AncestryCertificate
-                  sheep={sheep}
-                  sire={ancestry?.sire?.sheep}
-                  dam={ancestry?.dam?.sheep}
-                  analysis={analysis || undefined}
-                />
-
-                {descendants.length > 0 && (
+              <TabsContent value="lineage">
+                <div className="space-y-6">
                   <div className="glass-card p-6">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Direct Offspring</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {descendants.map(child => (
-                        <Link
-                          key={child.id}
-                          to={`/sheep/${child.id}`}
-                          className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 border border-border/40 transition-all group"
-                        >
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">
-                            {child.gender === 'male' ? "🐏" : "🐑"}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold group-hover:text-primary transition-colors">{child.name}</p>
-                            <p className="text-[10px] text-muted-foreground uppercase">{child.tag_id}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground/40 group-hover:text-primary" />
-                        </Link>
-                      ))}
-                    </div>
+                    <h3 className="section-title mb-1">Family Tree</h3>
+                    <p className="text-xs text-muted-foreground mb-6">Interactive ancestry mapping and DNA-verified parentage.</p>
+
+                    {isLoadingAncestry ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+                      </div>
+                    ) : ancestry ? (
+                      <LineageTree root={ancestry} />
+                    ) : (
+                      <div className="text-center py-12">
+                        <p className="text-sm text-muted-foreground">No lineage data available for this sheep.</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </motion.div>
-      </div>
 
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {isDeleteConfirmOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="glass-card max-w-sm w-full p-6 shadow-2xl border-destructive/20"
-            >
-              <div className="flex items-center gap-3 text-destructive mb-4">
-                <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <Trash2 className="h-5 w-5" />
+                  <AncestryCertificate
+                    sheep={sheep}
+                    sire={ancestry?.sire?.sheep}
+                    dam={ancestry?.dam?.sheep}
+                    analysis={analysis || undefined}
+                  />
+
+                  {descendants.length > 0 && (
+                    <div className="glass-card p-6">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Direct Offspring</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {descendants.map(child => (
+                          <Link
+                            key={child.id}
+                            to={`/sheep/${child.id}`}
+                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 border border-border/40 transition-all group"
+                          >
+                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">
+                              {child.gender === 'male' ? "🐏" : "🐑"}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold group-hover:text-primary transition-colors">{child.name}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase">{child.tag_id}</p>
+                            </div>
+                            <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground/40 group-hover:text-primary" />
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-lg font-bold">Delete Record?</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-6">
-                Are you sure you want to delete <strong>{sheep.name}</strong>? This action is permanent and will remove all health history and DNA records.
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-xl"
-                  onClick={() => setIsDeleteConfirmOpen(false)}
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1 rounded-xl"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Delete
-                </Button>
-              </div>
-            </motion.div>
+              </TabsContent>
+            </Tabs>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
 
-      {/* Edit Sheet */}
-      <EditSheepSheet
-        sheep={sheep}
-        open={isEditOpen}
-        onOpenChange={setIsEditOpen}
-        onUpdate={onUpdate}
-      />
+        {/* Delete Confirmation Modal */}
+        <AnimatePresence>
+          {isDeleteConfirmOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="glass-card max-w-sm w-full p-6 shadow-2xl border-destructive/20"
+              >
+                <div className="flex items-center gap-3 text-destructive mb-4">
+                  <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-bold">Delete Record?</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Are you sure you want to delete <strong>{sheep.name}</strong>? This action is permanent and will remove all health history and DNA records.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl"
+                    onClick={() => setIsDeleteConfirmOpen(false)}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1 rounded-xl"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Delete
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Edit Sheet */}
+        <EditSheepSheet
+          sheep={sheep}
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          onUpdate={onUpdate}
+        />
+      </ErrorBoundary>
     </PageWrapper>
   );
 };
