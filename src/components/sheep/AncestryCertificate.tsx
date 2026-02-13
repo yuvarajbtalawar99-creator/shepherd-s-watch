@@ -73,7 +73,7 @@ export default function AncestryCertificate({ sheep, sire, dam, analysis }: Ance
                             <Dna className="h-3 w-3" /> Genetic Traceability Hub
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {analysis.markers ? Object.entries(analysis.markers).map(([gene, allele]) => (
+                            {analysis.markers && typeof analysis.markers === 'object' ? Object.entries(analysis.markers).map(([gene, allele]) => (
                                 <div key={gene} className="p-3 rounded-xl bg-white/50 border border-border/50 flex items-center justify-between">
                                     <span className="text-xs font-bold text-muted-foreground">{gene}</span>
                                     <span className="text-xs font-black text-foreground">{allele}</span>

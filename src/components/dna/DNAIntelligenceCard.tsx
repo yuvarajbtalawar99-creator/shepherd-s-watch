@@ -62,7 +62,7 @@ export const DNAIntelligenceCard = ({ analysis }: DNAIntelligenceCardProps) => {
             <div className="space-y-4">
                 <h5 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Genetic Risk Indicators</h5>
                 <div className="space-y-3">
-                    {analysis.risk_indicators ? analysis.risk_indicators.map((risk, i) => (
+                    {analysis.risk_indicators && Array.isArray(analysis.risk_indicators) ? analysis.risk_indicators.map((risk, i) => (
                         <div key={i} className="space-y-1.5">
                             <div className="flex items-center justify-between text-[11px]">
                                 <span className="font-bold">{risk.disease}</span>
