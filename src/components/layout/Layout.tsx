@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import TopBar from "./TopBar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { ShepherdAssistant } from "../assistant/ShepherdAssistant";
 
 const Layout = () => {
   return (
@@ -15,6 +16,7 @@ const Layout = () => {
           </main>
         </div>
       </div>
+      <ShepherdAssistant />
     </SidebarProvider>
   );
 };

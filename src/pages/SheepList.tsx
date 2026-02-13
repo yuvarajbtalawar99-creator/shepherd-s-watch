@@ -1,94 +1,114 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import SheepCard from "@/components/sheep/SheepCard";
 import { AddSheepDialog } from "@/components/sheep/AddSheepDialog";
+import AddSheepChoiceModal from "@/components/sheep/AddSheepChoiceModal";
+import BulkRegistrationWizard from "@/components/sheep/BulkRegistrationWizard";
 import { supabase } from "@/lib/supabase";
 import { Sheep } from "@/types/sheep";
 import { Button } from "@/components/ui/button";
 import { Plus, Filter, Loader2, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 type FilterType = "all" | "healthy" | "sick" | "pregnant" | "lactating" | "high_risk";
 
 const SheepList = () => {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<FilterType>("all");
-  const [sheep, setSheep] = useState<Sheep[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [showChoiceModal, setShowChoiceModal] = useState(false);
+  const [showSingleDialog, setShowSingleDialog] = useState(false);
+  const [showBulkWizard, setShowBulkWizard] = useState(false);
 
-  // Fetch sheep from Supabase
-  const fetchSheep = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const queryClient = useQueryClient();
 
+  // Setup Real-time Subscriptions for parity with Dashboard
+  useEffect(() => {
+    const channel = supabase
+      .channel("sheep-list-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sheep" },
+        () => {
+          console.log("[Sheep Registry] Real-time update detected, invalidating cache...");
+          queryClient.invalidateQueries({ queryKey: ["sheep"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  // Optimized fetch using narrow selection and React Query caching
+  const { data: sheep = [], isLoading, error } = useQuery({
+    queryKey: ["sheep"],
+    queryFn: async () => {
       const { data, error: fetchError } = await supabase
         .from("sheep")
-        .select("*")
+        .select("id, tag_id, name, status, risk_level, breed, gender, weight_kg, health_score, front_image_url")
         .order("created_at", { ascending: false });
 
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      setSheep(data || []);
-    } catch (err) {
-      console.error("Error fetching sheep:", err);
-      setError(err instanceof Error ? err.message : "Failed to load sheep");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load sheep on component mount
-  useEffect(() => {
-    fetchSheep();
-  }, []);
-
-  // Filter sheep based on selected filter
-  const filtered = sheep.filter(s => {
-    if (filter === "all") return true;
-    if (filter === "high_risk") return s.risk_level === "high";
-    return s.status === filter;
+      if (fetchError) throw fetchError;
+      return (data as Sheep[]) || [];
+    },
+    staleTime: 1000 * 60 * 5,
   });
 
+  // Filter sheep based on selected filter
+  const filtered = useMemo(() => {
+    return sheep.filter(s => {
+      if (filter === "all") return true;
+      if (filter === "high_risk") return s.risk_level === "high";
+      return s.status === filter;
+    });
+  }, [sheep, filter]);
+
   // Calculate filter counts
-  const filters: { key: FilterType; label: string; count: number }[] = [
-    { key: "all", label: "All", count: sheep.length },
-    { key: "healthy", label: "Healthy", count: sheep.filter(s => s.status === "healthy").length },
-    { key: "pregnant", label: "Pregnant", count: sheep.filter(s => s.status === "pregnant").length },
-    { key: "sick", label: "Sick", count: sheep.filter(s => s.status === "sick").length },
-    { key: "lactating", label: "Lactating", count: sheep.filter(s => s.status === "lactating").length },
-    { key: "high_risk", label: "High Risk", count: sheep.filter(s => s.risk_level === "high").length },
-  ];
+  const filters: { key: FilterType; label: string; count: number }[] = useMemo(() => [
+    { key: "all", label: t('all'), count: sheep.length },
+    { key: "healthy", label: t('healthy'), count: sheep.filter(s => s.status === "healthy").length },
+    { key: "pregnant", label: t('pregnant'), count: sheep.filter(s => s.status === "pregnant").length },
+    { key: "sick", label: t('sick'), count: sheep.filter(s => s.status === "sick").length },
+    { key: "lactating", label: t('lactating'), count: sheep.filter(s => s.status === "lactating").length },
+    { key: "high_risk", label: t('highRisk'), count: sheep.filter(s => s.risk_level === "high").length },
+  ], [sheep, t]);
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["sheep"] });
+  };
 
   return (
     <PageWrapper
-      title="Sheep Registry"
-      subtitle={`${sheep.length} sheep in your flock`}
+      title={t('sheepRegistry')}
+      subtitle={`${sheep.length} ${t('sheepInFlock')}`}
       actions={
-        <AddSheepDialog onSuccess={fetchSheep}>
-          <Button className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-            <Plus className="h-4 w-4" /> Add Sheep
-          </Button>
-        </AddSheepDialog>
+        <Button
+          onClick={() => setShowChoiceModal(true)}
+          className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" /> {t('addSheep')}
+        </Button>
       }
     >
       {/* Error State */}
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error loading sheep</AlertTitle>
+          <AlertTitle>{t('errorLoadingSheep')}</AlertTitle>
           <AlertDescription>
-            {error}
+            {error instanceof Error ? error.message : "Failed to load sheep"}
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchSheep}
+              onClick={handleRefresh}
               className="ml-4"
             >
-              Try Again
+              {t('tryAgain')}
             </Button>
           </AlertDescription>
         </Alert>
@@ -101,13 +121,13 @@ const SheepList = () => {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filter === f.key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
+            className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - xl text - sm font - medium transition - colors whitespace - nowrap ${filter === f.key
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+              } `}
           >
             {f.label}
-            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${filter === f.key ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
+            <Badge variant="secondary" className={`text - [10px] px - 1.5 py - 0 ${filter === f.key ? "bg-primary-foreground/20 text-primary-foreground" : ""} `}>
               {f.count}
             </Badge>
           </button>
@@ -115,26 +135,24 @@ const SheepList = () => {
       </div>
 
       {/* Loading State */}
-      {loading && (
+      {isLoading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
 
       {/* Empty State */}
-      {!loading && !error && sheep.length === 0 && (
+      {!isLoading && !error && sheep.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-muted-foreground mb-4">No sheep in your flock yet</p>
-          <AddSheepDialog onSuccess={fetchSheep}>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" /> Add Your First Sheep
-            </Button>
-          </AddSheepDialog>
+          <p className="text-muted-foreground mb-4">{t('noSheepInFlock')}</p>
+          <Button onClick={() => setShowChoiceModal(true)}>
+            <Plus className="h-4 w-4 mr-2" /> {t('addFirstSheep')}
+          </Button>
         </div>
       )}
 
       {/* Sheep Grid */}
-      {!loading && !error && filtered.length > 0 && (
+      {!isLoading && !error && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((sheep, i) => (
             <SheepCard key={sheep.id} sheep={sheep} index={i} />
@@ -143,11 +161,32 @@ const SheepList = () => {
       )}
 
       {/* No Results for Filter */}
-      {!loading && !error && sheep.length > 0 && filtered.length === 0 && (
+      {!isLoading && !error && sheep.length > 0 && filtered.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">No sheep match the selected filter</p>
+          <p className="text-muted-foreground">{t('noSheepMatchFilter')}</p>
         </div>
       )}
+
+      {/* Modals */}
+      <AddSheepChoiceModal
+        open={showChoiceModal}
+        onOpenChange={setShowChoiceModal}
+        onChooseSingle={() => setShowSingleDialog(true)}
+        onChooseBulk={() => setShowBulkWizard(true)}
+        onSuccess={handleRefresh}
+      />
+
+      <AddSheepDialog
+        open={showSingleDialog}
+        onOpenChange={setShowSingleDialog}
+        onSuccess={handleRefresh}
+      />
+
+      <BulkRegistrationWizard
+        open={showBulkWizard}
+        onOpenChange={setShowBulkWizard}
+        onSuccess={handleRefresh}
+      />
     </PageWrapper>
   );
 };

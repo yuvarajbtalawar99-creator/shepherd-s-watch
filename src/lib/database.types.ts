@@ -59,6 +59,16 @@ export interface Database {
                     risk_level: 'low' | 'medium' | 'high'
                     status: 'healthy' | 'sick' | 'pregnant' | 'lactating'
                     image_url: string | null
+                    front_image_url: string | null
+                    back_image_url: string | null
+                    left_image_url: string | null
+                    right_image_url: string | null
+                    qr_code: string | null
+                    dna_report_url: string | null
+                    dna_verified: boolean
+                    latest_analysis_id: string | null
+                    sire_id: string | null
+                    dam_id: string | null
                     owner_id: string
                     created_at: string
                     updated_at: string
@@ -75,6 +85,16 @@ export interface Database {
                     risk_level?: 'low' | 'medium' | 'high'
                     status?: 'healthy' | 'sick' | 'pregnant' | 'lactating'
                     image_url?: string | null
+                    front_image_url?: string | null
+                    back_image_url?: string | null
+                    left_image_url?: string | null
+                    right_image_url?: string | null
+                    qr_code?: string | null
+                    dna_report_url?: string | null
+                    dna_verified?: boolean
+                    latest_analysis_id?: string | null
+                    sire_id?: string | null
+                    dam_id?: string | null
                     owner_id: string
                     created_at?: string
                     updated_at?: string
@@ -91,6 +111,16 @@ export interface Database {
                     risk_level?: 'low' | 'medium' | 'high'
                     status?: 'healthy' | 'sick' | 'pregnant' | 'lactating'
                     image_url?: string | null
+                    front_image_url?: string | null
+                    back_image_url?: string | null
+                    left_image_url?: string | null
+                    right_image_url?: string | null
+                    qr_code?: string | null
+                    dna_report_url?: string | null
+                    dna_verified?: boolean
+                    latest_analysis_id?: string | null
+                    sire_id?: string | null
+                    dam_id?: string | null
                     owner_id?: string
                     created_at?: string
                     updated_at?: string
@@ -114,6 +144,8 @@ export interface Database {
                     date: string
                     administered_by: string | null
                     hash: string | null
+                    blockchain_hash: string | null
+                    blockchain_tx: string | null
                     verified: boolean
                     created_at: string
                     updated_at: string
@@ -207,6 +239,101 @@ export interface Database {
                         foreignKeyName: "daily_tasks_sheep_id_fkey"
                         columns: ["sheep_id"]
                         referencedRelation: "sheep"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            dna_analysis: {
+                Row: {
+                    id: string
+                    sheep_id: string
+                    markers: Json
+                    risk_indicators: Json
+                    confidence_level: number
+                    recommendations: string[]
+                    life_expectancy_min: number
+                    life_expectancy_max: number
+                    summary: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    sheep_id: string
+                    markers: Json
+                    risk_indicators: Json
+                    confidence_level: number
+                    recommendations: string[]
+                    life_expectancy_min: number
+                    life_expectancy_max: number
+                    summary: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    sheep_id?: string
+                    markers?: Json
+                    risk_indicators?: Json
+                    confidence_level?: number
+                    recommendations?: string[]
+                    life_expectancy_min?: number
+                    life_expectancy_max?: number
+                    summary?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "dna_analysis_id_fkey"
+                        columns: ["id"]
+                        referencedRelation: "dna_analysis"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "dna_analysis_sheep_id_fkey"
+                        columns: ["sheep_id"]
+                        referencedRelation: "sheep"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            notifications: {
+                Row: {
+                    id: string
+                    user_id: string
+                    title: string
+                    message: string
+                    type: 'health_alert' | 'task_reminder' | 'dna_analysis' | 'system' | 'bulk_import'
+                    read: boolean
+                    link: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    title: string
+                    message: string
+                    type: 'health_alert' | 'task_reminder' | 'dna_analysis' | 'system' | 'bulk_import'
+                    read?: boolean
+                    link?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    title?: string
+                    message?: string
+                    type?: 'health_alert' | 'task_reminder' | 'dna_analysis' | 'system' | 'bulk_import'
+                    read?: boolean
+                    link?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "notifications_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
                         referencedColumns: ["id"]
                     }
                 ]

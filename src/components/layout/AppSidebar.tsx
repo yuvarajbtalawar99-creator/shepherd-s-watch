@@ -4,6 +4,7 @@ import {
   Zap,
   Heart,
   ClipboardList,
+  BrainCircuit,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -18,18 +19,24 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { translations } from "@/data/translations";
 
-const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Sheep Registry", url: "/sheep", icon: ListChecks },
-  { title: "Herding Mode", url: "/herding", icon: Zap },
-  { title: "Breeding", url: "/breeding", icon: Heart },
-  { title: "Daily Tasks", url: "/tasks", icon: ClipboardList },
-];
+type TranslationKey = keyof typeof translations['en'];
 
 const AppSidebar = () => {
   const { state } = useSidebar();
+  const { t } = useTranslation();
   const collapsed = state === "collapsed";
+
+  const navItems: { title: string; key: TranslationKey; url: string; icon: any }[] = [
+    { title: "Dashboard", key: "dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Sheep Registry", key: "sheepRegistry", url: "/sheep", icon: ListChecks },
+    { title: "Herding Mode", key: "herdingMode", url: "/herding", icon: Zap },
+    { title: "Breeding", key: "breeding", url: "/breeding", icon: Heart },
+    { title: "Matchmaker", key: "matchmaker", url: "/matchmaker", icon: BrainCircuit },
+    { title: "Daily Tasks", key: "dailyTasks", url: "/tasks", icon: ClipboardList },
+  ];
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -41,10 +48,10 @@ const AppSidebar = () => {
           {!collapsed && (
             <div>
               <h1 className="font-heading font-bold text-sidebar-foreground text-base leading-tight">
-                ShepherdCare
+                {t('shepherdCare')}
               </h1>
               <p className="text-[10px] text-sidebar-foreground/60 leading-tight">
-                Livestock Intelligence
+                {t('livestockIntelligence')}
               </p>
             </div>
           )}
@@ -53,13 +60,13 @@ const AppSidebar = () => {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/50 text-[10px] uppercase tracking-wider">
-            Navigation
+            {t('navigation')}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton asChild tooltip={t(item.key)}>
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
@@ -67,7 +74,7 @@ const AppSidebar = () => {
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
                     >
                       <item.icon className="h-5 w-5" />
-                      <span>{item.title}</span>
+                      <span>{t(item.key)}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

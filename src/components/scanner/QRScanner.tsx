@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { mockSheep } from "@/data/mockData";
-import { ScanLine, X, Camera, AlertCircle } from "lucide-react";
+import { ScanLine, X, AlertCircle, Syringe, Activity, Baby, Stethoscope, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import HealthScoreGauge from "@/components/sheep/HealthScoreGauge";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
+import { Sheep } from "@/types/sheep";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   healthy: { label: "Healthy", className: "bg-success/10 text-success border-success/20" },
@@ -18,18 +19,91 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 
 interface QRScannerProps {
   onClose: () => void;
+  onSelect?: (sheep: Sheep) => void;
+  autoSelect?: boolean;
 }
 
-const QRScanner = ({ onClose }: QRScannerProps) => {
+const QRScanner = ({ onClose, onSelect, autoSelect }: QRScannerProps) => {
   const navigate = useNavigate();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scannedSheep, setScannedSheep] = useState<typeof mockSheep[0] | null>(null);
+  const [scannedSheep, setScannedSheep] = useState<Sheep | null>(null);
+
+  const checkDbForSheep = async (code: string) => {
+    // Stop scanning while we check the DB
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.pause();
+      } catch (e) {
+        console.warn("Failed to pause scanner", e);
+      }
+    }
+
+    setChecking(true);
+
+    // Expected format handling
+    let sheepId = code;
+    if (code.includes("sheep/")) {
+      sheepId = code.split("sheep/").pop() || "";
+    }
+
+    // Clean up if it's a URL
+    try {
+      if (sheepId.includes("http")) {
+        const url = new URL(sheepId);
+        const pathParts = url.pathname.split('/');
+        // assume last part is ID
+        sheepId = pathParts[pathParts.length - 1];
+      }
+    } catch (e) {
+      // Not a URL, proceed as ID
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('sheep')
+        .select('*')
+        .or(`id.eq.${sheepId},tag_id.eq.${sheepId}`)
+        .single();
+
+      if (error || !data) {
+        setError(`No sheep found for code: ${sheepId}`);
+        if (scannerRef.current) scannerRef.current.resume();
+      } else {
+        setScannedSheep(data as Sheep);
+        toast.success(`Found: ${data.name} (${data.tag_id})`);
+
+        // Fully stop scanner on success
+        if (scannerRef.current) {
+          scannerRef.current.stop().catch(() => { });
+        }
+        setScanning(false);
+
+        // If autoSelect is enabled, trigger selection immediately
+        if (autoSelect && onSelect) {
+          onSelect(data as Sheep);
+          onClose();
+        }
+      }
+    } catch (err) {
+      console.error("DB Error", err);
+      setError("Database connection failed. Check your internet.");
+      if (scannerRef.current) scannerRef.current.resume();
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const startScanner = async () => {
     try {
       setError(null);
+      // If already running, clean up first
+      if (scannerRef.current?.isScanning) {
+        await scannerRef.current.stop();
+      }
+
       const html5Qrcode = new Html5Qrcode("qr-reader");
       scannerRef.current = html5Qrcode;
 
@@ -37,43 +111,35 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
-          // Expected format: shepherdcare://sheep/{id} or just sheep ID
-          let sheepId = decodedText;
-          if (decodedText.includes("sheep/")) {
-            sheepId = decodedText.split("sheep/").pop() || "";
-          }
-
-          const found = mockSheep.find(s => s.id === sheepId || s.tag_id === sheepId);
-          if (found) {
-            html5Qrcode.stop().catch(() => {});
-            setScanning(false);
-            setScannedSheep(found);
-            toast.success(`Found: ${found.name} (${found.tag_id})`);
-          } else {
-            html5Qrcode.stop().catch(() => {});
-            setScanning(false);
-            setError(`No sheep found for code: ${decodedText}`);
-          }
+          checkDbForSheep(decodedText);
         },
-        () => {} // ignore scan failures
+        () => { } // ignore scan failures
       );
       setScanning(true);
     } catch (err) {
-      setError("Camera access denied or not available. Please allow camera permissions.");
+      console.error(err);
+      setError("Camera access denied. Please allow camera permissions.");
     }
   };
 
   useEffect(() => {
     startScanner();
     return () => {
-      scannerRef.current?.stop().catch(() => {});
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(() => { });
+      }
     };
   }, []);
 
   const handleGoToProfile = () => {
     if (scannedSheep) {
-      onClose();
-      navigate(`/sheep/${scannedSheep.id}`);
+      if (onSelect) {
+        onSelect(scannedSheep);
+        onClose();
+      } else {
+        onClose();
+        navigate(`/sheep/${scannedSheep.id}`);
+      }
     }
   };
 
@@ -81,6 +147,57 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
     setScannedSheep(null);
     setError(null);
     startScanner();
+  };
+
+  const handleQuickAction = async (type: 'vaccination' | 'sick' | 'pregnant' | 'vet_visit') => {
+    if (!scannedSheep) return;
+
+    try {
+      setChecking(true);
+
+      // 1. Update sheep status if needed
+      if (type === 'sick' || type === 'pregnant') {
+        const { error: updateError } = await supabase
+          .from('sheep')
+          .update({ status: type })
+          .eq('id', scannedSheep.id);
+
+        if (updateError) throw updateError;
+
+        // Update local state to reflect change immediately
+        setScannedSheep({ ...scannedSheep, status: type });
+      }
+
+      // 2. Create health event
+      const eventTitle = {
+        vaccination: "Quick Vaccination",
+        sick: "Marked as Sick",
+        pregnant: "Confirmed Pregnancy",
+        vet_visit: "Vet Checkup"
+      }[type];
+
+      const { error: eventError } = await supabase
+        .from('health_events')
+        .insert({
+          sheep_id: scannedSheep.id,
+          type: type === 'sick' ? 'illness' : (type === 'pregnant' ? 'pregnancy' : type),
+          title: eventTitle,
+          description: `Action recorded directly from QR scan on ${new Date().toLocaleDateString()}`,
+          date: new Date().toISOString().split('T')[0],
+          verified: type === 'vet_visit'
+        });
+
+      if (eventError) throw eventError;
+
+      toast.success(`${eventTitle} recorded successfully!`, {
+        icon: <CheckCircle2 className="h-4 w-4 text-success" />,
+      });
+    } catch (err: any) {
+      console.error("Quick Action Error:", err);
+      toast.error(`Failed to record ${type}: ${err.message}`);
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
@@ -119,6 +236,7 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
                 id="qr-reader"
                 className="w-full rounded-2xl overflow-hidden bg-foreground/5 min-h-[280px]"
               />
+              {checking && <p className="text-center text-primary font-bold mt-2 animate-pulse">Checking Registry...</p>}
               <p className="text-xs text-muted-foreground text-center mt-3">
                 Point camera at a sheep QR code
               </p>
@@ -133,17 +251,6 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" className="rounded-xl" onClick={handleScanAgain}>
                   Try Again
-                </Button>
-                {/* Demo: allow manual entry */}
-                <Button
-                  className="rounded-xl bg-primary text-primary-foreground"
-                  onClick={() => {
-                    const found = mockSheep[0];
-                    setScannedSheep(found);
-                    setError(null);
-                  }}
-                >
-                  Demo: Scan Bella
                 </Button>
               </div>
             </motion.div>
@@ -166,40 +273,57 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
                   </div>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-dashed border-primary/30 hover:border-primary hover:bg-primary/5 text-xs py-5"
+                  onClick={() => handleQuickAction('vaccination')}
+                  disabled={checking}
+                >
+                  <Syringe className="mr-2 h-4 w-4 text-primary" /> Vaccine
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-dashed border-destructive/30 hover:border-destructive hover:bg-destructive/5 text-xs py-5"
+                  onClick={() => handleQuickAction('sick')}
+                  disabled={checking}
+                >
+                  <Activity className="mr-2 h-4 w-4 text-destructive" /> Sick
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-dashed border-primary/30 hover:border-primary hover:bg-primary/5 text-xs py-5"
+                  onClick={() => handleQuickAction('pregnant')}
+                  disabled={checking}
+                >
+                  <Baby className="mr-2 h-4 w-4 text-primary" /> Pregnant
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-dashed border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/5 text-xs py-5"
+                  onClick={() => handleQuickAction('vet_visit')}
+                  disabled={checking}
+                >
+                  <Stethoscope className="mr-2 h-4 w-4 text-blue-500" /> Vet visit
+                </Button>
+              </div>
+
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1 rounded-xl" onClick={handleScanAgain}>
                   Scan Another
                 </Button>
                 <Button className="flex-1 rounded-xl bg-primary text-primary-foreground" onClick={handleGoToProfile}>
-                  View Full Profile →
+                  {onSelect ? "Select & Continue" : "View Full Profile →"}
                 </Button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Demo buttons when scanner is active but no camera */}
-        {scanning && !scannedSheep && !error && (
-          <div className="mt-4 pt-4 border-t border-border/50">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 text-center">Demo: Quick Scan</p>
-            <div className="grid grid-cols-3 gap-2">
-              {mockSheep.slice(0, 3).map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    scannerRef.current?.stop().catch(() => {});
-                    setScanning(false);
-                    setScannedSheep(s);
-                    toast.success(`Scanned: ${s.name} (${s.tag_id})`);
-                  }}
-                  className="p-2 rounded-xl bg-muted/50 hover:bg-muted text-xs font-medium text-foreground transition-colors"
-                >
-                  🐑 {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </motion.div>
     </motion.div>
   );
