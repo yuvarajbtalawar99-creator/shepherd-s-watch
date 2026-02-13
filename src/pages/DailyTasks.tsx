@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { mockDailyTasks } from "@/data/mockData";
+import { supabase } from "@/lib/supabase";
+import { DailyTask } from "@/types/sheep";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Circle, AlertTriangle, Syringe, Baby, Stethoscope, Bug } from "lucide-react";
+import { CheckCircle, Circle, AlertTriangle, Syringe, Baby, Stethoscope, Bug, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { toast } from "sonner";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 const typeIcons = {
   vaccination: Syringe,
@@ -21,32 +24,104 @@ const priorityColors = {
 };
 
 const DailyTasks = () => {
-  const [tasks, setTasks] = useState(mockDailyTasks);
+  const { t } = useTranslation();
+  const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [tab, setTab] = useState<"today" | "upcoming">("today");
+  const [loading, setLoading] = useState(true);
 
-  const today = "2026-02-12";
-  const todayTasks = tasks.filter(t => t.due_date === today);
-  const upcomingTasks = tasks.filter(t => t.due_date > today);
-  const displayTasks = tab === "today" ? todayTasks : upcomingTasks;
+  // Fetch tasks from Supabase
+  const fetchTasks = async () => {
+    const { data, error } = await supabase
+      .from("daily_tasks")
+      .select("*")
+      .order("due_date", { ascending: true });
 
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    if (error) {
+      console.error("Error fetching tasks:", error);
+      toast.error(t('failedToLoadTasks'));
+    } else {
+      setTasks(data || []);
+    }
   };
 
+  // Initial fetch and real-time subscription
+  useEffect(() => {
+    const loadTasks = async () => {
+      setLoading(true);
+      await fetchTasks();
+      setLoading(false);
+    };
+
+    loadTasks();
+
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('tasks-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'daily_tasks' },
+        () => {
+          console.log('Tasks changed, refreshing...');
+          fetchTasks();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayTasks = tasks.filter(t => t.due_date === todayStr);
+  const upcomingTasks = tasks.filter(t => t.due_date > todayStr);
+  const displayTasks = tab === "today" ? todayTasks : upcomingTasks;
+
+  const toggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+
+    // Update in database
+    const { error } = await supabase
+      .from("daily_tasks")
+      .update({ completed: !task.completed })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating task:", error);
+      toast.error(t('failedToUpdateTask'));
+      // Revert optimistic update
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: task.completed } : t));
+    } else {
+      toast.success(task.completed ? t('taskMarkedIncomplete') : t('taskCompleted'));
+    }
+  };
+
+  if (loading) {
+    return (
+      <PageWrapper title={t('dailyAssistantTitle')} subtitle={t('loadingTasks')}>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PageWrapper>
+    );
+  }
+
   return (
-    <PageWrapper title="Digital Shepherd Assistant" subtitle="Your daily intelligent task list">
+    <PageWrapper title={t('dailyAssistantTitle')} subtitle={t('dailyTaskSubtitle')}>
       <div className="max-w-2xl mx-auto">
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          {(["today", "upcoming"] as const).map(t => (
+          {(["today", "upcoming"] as const).map(tabKey => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                tab === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              }`}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${tab === tabKey ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
             >
-              {t === "today" ? `Today (${todayTasks.length})` : `Upcoming (${upcomingTasks.length})`}
+              {tabKey === "today" ? `${t('today')} (${todayTasks.length})` : `${t('upcoming')} (${upcomingTasks.length})`}
             </button>
           ))}
         </div>
@@ -55,7 +130,7 @@ const DailyTasks = () => {
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">
             {displayTasks.map((task, i) => {
-              const Icon = typeIcons[task.type];
+              const Icon = (typeIcons as any)[task.type] || Circle;
               return (
                 <motion.div
                   key={task.id}
@@ -85,8 +160,8 @@ const DailyTasks = () => {
                         </Link>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <Badge variant="outline" className={priorityColors[task.priority]}>
-                          {task.priority}
+                        <Badge variant="outline" className={(priorityColors as any)[task.priority]}>
+                          {t(task.priority as any)}
                         </Badge>
                         <div className="flex items-center gap-1 text-muted-foreground">
                           <Icon className="h-3.5 w-3.5" />
@@ -105,8 +180,8 @@ const DailyTasks = () => {
           {displayTasks.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <CheckCircle className="h-12 w-12 mx-auto mb-3 text-success/40" />
-              <p className="font-medium">All caught up!</p>
-              <p className="text-sm">No {tab === "today" ? "tasks for today" : "upcoming tasks"}.</p>
+              <p className="font-medium">{t('allCaughtUp')}</p>
+              <p className="text-sm">{tab === "today" ? t('noTasksToday') : t('noUpcomingTasks')}.</p>
             </div>
           )}
         </div>

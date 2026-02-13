@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { motion } from "framer-motion";
 import { Sheep } from "@/types/sheep";
 import HealthScoreGauge from "./HealthScoreGauge";
@@ -23,8 +24,9 @@ const riskConfig: Record<Sheep["risk_level"], string> = {
   high: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-const SheepCard = ({ sheep, index }: SheepCardProps) => {
-  const statusCfg = statusConfig[sheep.status];
+const SheepCard = memo(({ sheep, index }: SheepCardProps) => {
+  const statusCfg = statusConfig[sheep.status] || { label: "Unknown", className: "bg-muted text-muted-foreground" };
+  const riskClass = riskConfig[sheep.risk_level] || "bg-muted text-muted-foreground border-muted-foreground/20";
 
   return (
     <motion.div
@@ -41,10 +43,12 @@ const SheepCard = ({ sheep, index }: SheepCardProps) => {
                 <h3 className="font-heading font-bold text-foreground">{sheep.name}</h3>
                 <span className="text-xs text-muted-foreground font-mono">{sheep.tag_id}</span>
               </div>
-              <p className="text-sm text-muted-foreground">{sheep.breed} · {sheep.gender === "female" ? "♀" : "♂"} · {sheep.weight_kg}kg</p>
+              <p className="text-sm text-muted-foreground truncate">
+                {sheep.breed || 'Unknown'} · {sheep.gender === "female" ? "♀" : "♂"} · {sheep.weight_kg || '??'}kg
+              </p>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant="outline" className={statusCfg.className}>{statusCfg.label}</Badge>
-                <Badge variant="outline" className={riskConfig[sheep.risk_level]}>Risk: {sheep.risk_level}</Badge>
+                <Badge variant="outline" className={riskClass}>Risk: {sheep.risk_level}</Badge>
               </div>
             </div>
             <ChevronRight className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
@@ -53,6 +57,8 @@ const SheepCard = ({ sheep, index }: SheepCardProps) => {
       </Link>
     </motion.div>
   );
-};
+});
+
+SheepCard.displayName = "SheepCard";
 
 export default SheepCard;
