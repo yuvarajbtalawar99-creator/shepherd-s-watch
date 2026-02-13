@@ -103,6 +103,56 @@ const SheepProfile = () => {
   const loading = isLoadingSheep || isLoadingEvents;
   const error = sheepError;
 
+  // Smart Health Score Override Logic
+  const displayScore = useMemo(() => {
+    if (!sheep) return 0;
+    // If sick or high risk, score should NEVER be "Excellent"
+    if (sheep.status === 'sick' || sheep.risk_level === 'high') {
+      return Math.min(sheep.health_score, 45); // Cap at 45 (Moderate/Risk)
+    }
+    return sheep.health_score;
+  }, [sheep]);
+
+  // Background Data Correction Sync - with stable dependency
+  const lastSyncedId = useMemo(() => `${sheep?.id}-${sheep?.status}-${sheep?.health_score}`, [sheep]);
+  const [syncId, setSyncId] = useState<string>("");
+
+  useEffect(() => {
+    const syncHealthData = async () => {
+      if (!sheep || syncId === lastSyncedId) return;
+
+      const needsSync =
+        (sheep.status === 'sick' && (sheep.health_score > 45 || (sheep.risk_level || 'high') !== 'high')) ||
+        (sheep.status === 'healthy' && (sheep.health_score || 0) < 60 && (sheep.risk_level || 'low') === 'high');
+
+      if (needsSync) {
+        console.log(`[HealthSync] Correction needed for ${sheep.name} (${sheep.id})`);
+        setSyncId(lastSyncedId); // Mark as syncing to prevent immediate re-run
+
+        const corrections: Partial<Sheep> = {};
+
+        if (sheep.status === 'sick') {
+          corrections.health_score = 35;
+          corrections.risk_level = 'high';
+        } else if (sheep.status === 'healthy') {
+          corrections.health_score = 85;
+          corrections.risk_level = 'low';
+        }
+
+        const { error } = await supabase
+          .from('sheep')
+          .update(corrections)
+          .eq('id', sheep.id);
+
+        if (!error) {
+          console.log("[HealthSync] DB entry synchronized successfully.");
+        }
+      }
+    };
+
+    syncHealthData();
+  }, [sheep, lastSyncedId, syncId]);
+
   const handleDelete = async () => {
     if (!sheep) return;
     try {
@@ -190,56 +240,6 @@ const SheepProfile = () => {
       </PageWrapper>
     );
   }
-
-  // Smart Health Score Override Logic
-  const displayScore = useMemo(() => {
-    if (!sheep) return 0;
-    // If sick or high risk, score should NEVER be "Excellent"
-    if (sheep.status === 'sick' || sheep.risk_level === 'high') {
-      return Math.min(sheep.health_score, 45); // Cap at 45 (Moderate/Risk)
-    }
-    return sheep.health_score;
-  }, [sheep]);
-
-  // Background Data Correction Sync - with stable dependency
-  const lastSyncedId = useMemo(() => `${sheep?.id}-${sheep?.status}-${sheep?.health_score}`, [sheep]);
-  const [syncId, setSyncId] = useState<string>("");
-
-  useEffect(() => {
-    const syncHealthData = async () => {
-      if (!sheep || syncId === lastSyncedId) return;
-
-      const needsSync =
-        (sheep.status === 'sick' && (sheep.health_score > 45 || (sheep.risk_level || 'high') !== 'high')) ||
-        (sheep.status === 'healthy' && (sheep.health_score || 0) < 60 && (sheep.risk_level || 'low') === 'high');
-
-      if (needsSync) {
-        console.log(`[HealthSync] Correction needed for ${sheep.name} (${sheep.id})`);
-        setSyncId(lastSyncedId); // Mark as syncing to prevent immediate re-run
-
-        const corrections: Partial<Sheep> = {};
-
-        if (sheep.status === 'sick') {
-          corrections.health_score = 35;
-          corrections.risk_level = 'high';
-        } else if (sheep.status === 'healthy') {
-          corrections.health_score = 85;
-          corrections.risk_level = 'low';
-        }
-
-        const { error } = await supabase
-          .from('sheep')
-          .update(corrections)
-          .eq('id', sheep.id);
-
-        if (!error) {
-          console.log("[HealthSync] DB entry synchronized successfully.");
-        }
-      }
-    };
-
-    syncHealthData();
-  }, [sheep, lastSyncedId, syncId]);
 
   const age = sheep.date_of_birth ? Math.max(0, new Date().getFullYear() - new Date(sheep.date_of_birth).getFullYear()) : "??";
   const statusCfg = (statusConfig as any)[sheep.status] || { label: "Unknown", className: "bg-muted text-muted-foreground" };
