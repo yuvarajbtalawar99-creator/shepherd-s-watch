@@ -121,13 +121,13 @@ const SheepList = () => {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`flex items - center gap - 1.5 px - 3 py - 1.5 rounded - xl text - sm font - medium transition - colors whitespace - nowrap ${filter === f.key
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${filter === f.key
               ? "bg-primary text-primary-foreground"
               : "bg-muted text-muted-foreground hover:bg-muted/80"
-              } `}
+              }`}
           >
             {f.label}
-            <Badge variant="secondary" className={`text - [10px] px - 1.5 py - 0 ${filter === f.key ? "bg-primary-foreground/20 text-primary-foreground" : ""} `}>
+            <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${filter === f.key ? "bg-primary-foreground/20 text-primary-foreground" : ""}`}>
               {f.count}
             </Badge>
           </button>

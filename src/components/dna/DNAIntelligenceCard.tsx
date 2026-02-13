@@ -53,7 +53,7 @@ export const DNAIntelligenceCard = ({ analysis }: DNAIntelligenceCardProps) => {
                         <CheckCircle2 className="h-3 w-3" /> Status
                     </div>
                     <p className="text-sm font-bold text-foreground line-clamp-1">
-                        {analysis.summary.split('.')[0]}
+                        {analysis.summary ? analysis.summary.split('.')[0] : "Assessment pending"}
                     </p>
                 </div>
             </div>
@@ -62,7 +62,7 @@ export const DNAIntelligenceCard = ({ analysis }: DNAIntelligenceCardProps) => {
             <div className="space-y-4">
                 <h5 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Genetic Risk Indicators</h5>
                 <div className="space-y-3">
-                    {analysis.risk_indicators.map((risk, i) => (
+                    {analysis.risk_indicators ? analysis.risk_indicators.map((risk, i) => (
                         <div key={i} className="space-y-1.5">
                             <div className="flex items-center justify-between text-[11px]">
                                 <span className="font-bold">{risk.disease}</span>
@@ -79,7 +79,9 @@ export const DNAIntelligenceCard = ({ analysis }: DNAIntelligenceCardProps) => {
                                 "{risk.recommendation}"
                             </p>
                         </div>
-                    ))}
+                    )) : (
+                        <p className="text-[10px] text-muted-foreground italic">No genetic risk data available.</p>
+                    )}
                 </div>
             </div>
 
